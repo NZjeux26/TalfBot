@@ -21,16 +21,19 @@ soup = BeautifulSoup(html_content, "html.parser")
 # Find all table rows (<tr> elements)
 table_rows = soup.find_all("tr")
 
-found = False  # Flag to indicate if any matching row was found
+found = False  # Flag to indicate if any completed game was found
 
 for index, row in enumerate(table_rows, start=1):
-    # Extract the row text and convert it to lowercase for case-insensitive matching
+    # Get the text of the row using a separator to avoid words running together
     row_text = row.get_text(separator=" ", strip=True).lower()
     
-    # Debug output (optional)
-    #print(f"DEBUG: Row {index}: {row_text}")
+    # Debug: print each row's text so you can inspect what is being processed
+    print(f"DEBUG: Row {index}: {row_text}")
     
-    # Filter: Must be a Copenhagen Hnefatafl 11x11 game, not ongoing, and must contain "won"
+    # Filter criteria:
+    #   1. Must be a Copenhagen Hnefatafl 11x11 game.
+    #   2. Must not be ongoing.
+    #   3. Must contain "won" (indicating a completed game).
     if ("copenhagen hnefatafl 11x11" in row_text and
         "ongoing" not in row_text and
         "won" in row_text):
@@ -39,4 +42,4 @@ for index, row in enumerate(table_rows, start=1):
         found = True
 
 if not found:
-    print("No completed Copenhagen Hnefatafl 11x11 games found.")
+    print("\nNo completed Copenhagen Hnefatafl 11x11 games found.")

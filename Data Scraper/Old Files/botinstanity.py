@@ -11,7 +11,7 @@ headers = {
     # Add additional headers if needed
 }
 
-url = "https://aagenielsen.dk/visallespil_soeg.php"
+url = "https://aagenielsen.dk/visallespil.php"
 response = requests.get(url, headers=headers)
 
 # Save to file for debugging
