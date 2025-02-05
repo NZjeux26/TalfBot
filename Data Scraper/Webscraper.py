@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 # Configuration for Brave and Chromedriver
 brave_path = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
 chrome_driver_path = "/opt/homebrew/bin/chromedriver"
-
+#Run Headless
 options = webdriver.ChromeOptions()
 options.add_argument("--headless")
 options.binary_location = brave_path
@@ -50,7 +50,7 @@ time.sleep(1)
 rows = driver.find_elements(By.XPATH, "//tr")
 csv_data = []  # Each entry will be [game_summary, game_moves]
 processed_games = 0
-max_games = 2  # For testing, only process 5 games
+max_games = 100  # For testing, only process 5 games
 
 for idx in range(len(rows)):
     if processed_games >= max_games:
