@@ -50,7 +50,7 @@ time.sleep(1)
 rows = driver.find_elements(By.XPATH, "//tr")
 csv_data = []  # Each entry will be [game_summary, game_moves]
 processed_games = 0
-max_games = 100  # For testing, only process 5 games
+max_games = 1500  # For testing, only process 5 games
 
 for idx in range(len(rows)):
     if processed_games >= max_games:
