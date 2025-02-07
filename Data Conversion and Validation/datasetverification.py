@@ -1,7 +1,7 @@
 import numpy as np
 
 # Load dataset
-data = np.load("hnefatafl_dataset.npz")
+data = np.load("data/hnefatafl_dataset.npz")
 
 # Extract arrays
 X_boards = data["X_boards"]  # (num_samples, 6, 11, 11)

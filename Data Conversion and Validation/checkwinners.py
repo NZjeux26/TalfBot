@@ -1,7 +1,7 @@
 import numpy as np
 
 # Load dataset
-data = np.load("hnefatafl_dataset.npz")
+data = np.load("data/hnefatafl_dataset.npz")
 
 # Extract winner labels
 y_winner = data["y_winner"]
