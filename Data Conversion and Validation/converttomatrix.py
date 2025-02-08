@@ -161,7 +161,8 @@ def process_game(game_string):
             'game_id': game_id,
             'move_number': move_number,
             'player_turn': 'white' if board[PLAYER].sum() > 0 else 'black',
-            'move_text': move
+            'move_text': move,
+            'winner': winner_label
         }
         
         game_samples.append(move_sample)
@@ -183,19 +184,12 @@ def process_game(game_string):
 
         #print_board(board)
 
-    # Store the full game data (winner only once)
-    final_game_record = {
-        'moves': game_samples,
-        'winner': winner_label  # ✅ Store winner at the game level
-    }
-
-    return final_game_record
+    return game_samples
 
 
 def process_all_games():
     """Process all games and save with enhanced metadata"""
     all_data = []  # Stores move-by-move training data
-    game_summaries = {}  # Stores game-level summaries
     
     print("Starting game processing...")
     print("Looking for game files in current directory...")
@@ -205,7 +199,6 @@ def process_all_games():
     
     if not game_files:
         print("❌ No game_moves.csv file found in current directory!")
-        print("Please ensure the file exists and is in the correct location.")
         return
         
     print(f"Found {len(game_files)} file(s): {game_files}")
@@ -226,23 +219,15 @@ def process_all_games():
                         game_data = process_game(line.strip())  # Process the game
                         
                         if game_data:
-                            game_id = game_data['moves'][0]['game_id']
-                            total_moves = len(game_data['moves'])
-                            winner_label = game_data['winner']
-                            final_position = game_data['moves'][-1]['board_state']
-                            
-                            # Save game summary (stores winner once per game)
-                            game_summaries[game_id] = {
-                                'total_moves': total_moves,
-                                'winner': winner_label,
-                                'final_position': final_position
-                            }
+                            total_moves = len(game_data)
+                            winner_label = game_data[0]['winner']
+                            game_id = game_data[0]['game_id']
 
+                            # Add all move data for training
+                            all_data.extend(game_data)
+                            
                             print(f"✅ Successfully processed game {game_id} with {total_moves} moves")
                             print(f"Winner: {'White' if winner_label == 1 else 'Black' if winner_label == -1 else 'Draw'}")
-                        
-                        # Add all move data for training
-                        all_data.extend(game_data['moves'])
 
                     except Exception as e:
                         print(f"❌ Error processing game {i}: {str(e)}")
@@ -259,9 +244,7 @@ def process_all_games():
         X_boards = np.array([d['board_state'] for d in all_data])  # Board states
         y_start = np.array([d['start_pos'] for d in all_data])      # Move start positions
         y_end = np.array([d['end_pos'] for d in all_data])          # Move end positions
-        
-        # Winner labels should now match **game count**, not move count
-        y_winner = np.array([game_summaries[game_id]['winner'] for game_id in game_summaries])
+        y_winner = np.array([d['winner'] for d in all_data])
 
         # Save dataset with metadata
         output_file = "hnefatafl_dataset.npz"
@@ -276,6 +259,19 @@ def process_all_games():
                     'player_turns': [d['player_turn'] for d in all_data],
                     'move_texts': [d['move_text'] for d in all_data]
                 })
+       
+        #Generate updated game summaries dynamically
+        game_summaries = {}
+        for move in all_data:
+            game_id = move['game_id']
+            if game_id not in game_summaries:
+                game_summaries[game_id] = {
+                    'total_moves': 0,
+                    'winner': move['winner'],
+                    'final_position': None
+                }
+            game_summaries[game_id]['total_moves'] += 1
+            game_summaries[game_id]['final_position'] = move['board_state']  # Last move = final position
         
         # Save game summaries
         summary_file = "game_summaries.npy"
