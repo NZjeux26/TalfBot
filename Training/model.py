@@ -17,7 +17,7 @@ class PolicyValueNetwork(nn.Module):
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Dropout2d(0.2),
+            nn.Dropout2d(0.1),
              
             # Third conv block: (64 x 11 x 11) -> (128 x 11 x 11)
             nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1),
@@ -29,16 +29,24 @@ class PolicyValueNetwork(nn.Module):
             nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(256),
             nn.ReLU(),
-            nn.Dropout2d(0.3),
+            nn.Dropout2d(0.2),
         )
 
-        # === Policy Head (Move Selection) ===
-        self.policy_head = nn.Sequential(
-            nn.Conv2d(256, 2, kernel_size=1),  # (256 x 11 x 11) -> (2 x 11 x 11)
-            nn.BatchNorm2d(2),
+        # === Policy Head (Predicts Start & End Position Separately) ===
+        self.policy_start_head = nn.Sequential(
+            nn.Conv2d(256, 1, kernel_size=1),  # (256 x 11 x 11) -> (1 x 11 x 11)
+            nn.BatchNorm2d(1),
             nn.ReLU(),
-            nn.Flatten(),  # (2 x 11 x 11) -> (242)
-            nn.Linear(2 * 11 * 11, 242)  # Predicts a probability distribution over 242 possible moves
+            nn.Flatten(),  # (1 x 11 x 11) -> (121)
+            nn.Linear(121, 121)  # Output: Start position probabilities (121 classes)
+        )
+
+        self.policy_end_head = nn.Sequential(
+            nn.Conv2d(256, 1, kernel_size=1),  # (256 x 11 x 11) -> (1 x 11 x 11)
+            nn.BatchNorm2d(1),
+            nn.ReLU(),
+            nn.Flatten(),  # (1 x 11 x 11) -> (121)
+            nn.Linear(121, 121)  # Output: End position probabilities (121 classes)
         )
 
         # === Value Head (Position Evaluation) ===
@@ -55,6 +63,16 @@ class PolicyValueNetwork(nn.Module):
 
     def forward(self, x):
         x = self.conv_layers(x)  # Extract features
-        policy = self.policy_head(x)  # Move probabilities
-        value = self.value_head(x)  # Board evaluation
-        return policy, value
+
+        # Predict start and end positions separately
+        y_start_pred = self.policy_start_head(x)
+        y_end_pred = self.policy_end_head(x)
+
+        # Normalize outputs with softmax
+        y_start_pred = torch.softmax(y_start_pred, dim=1)
+        y_end_pred = torch.softmax(y_end_pred, dim=1)
+
+        # Predict value (winning probability)
+        value = self.value_head(x)
+
+        return y_start_pred, y_end_pred, value
