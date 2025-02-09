@@ -88,81 +88,178 @@ def print_board(board):
     print("   a b c d e f g h i j k")          
     print()
 
-def encode_move(start, end):
-    """Encodes move as two heatmaps: (start position, end position)"""
+def encode_move(start, end, board_state):
+    """
+    Enhanced move encoding that captures spatial relationships and game context.
+    
+    Args:
+        start: Tuple of (row, col) for starting position
+        end: Tuple of (row, col) for ending position
+        board_state: Current game state tensor
+        
+    Returns:
+        Dictionary containing multiple move representation features
+    """
+    # Basic position maps (your original implementation)
     start_map = np.zeros((11, 11))
     end_map = np.zeros((11, 11))
     
     r1, c1 = start
     r2, c2 = end
-
+    
     start_map[r1, c1] = 1
     end_map[r2, c2] = 1
+    
+    # Calculate movement vector
+    dr = r2 - r1  # Row difference (vertical movement)
+    dc = c2 - c1  # Column difference (horizontal movement)
+    
+    # Direction map (N,S,E,W) - helps model understand movement patterns
+    direction_map = np.zeros((11, 11, 4))  # 4 channels for cardinal directions
+    if abs(dr) > abs(dc):  # Vertical movement dominates
+        direction_map[r1, c1, 0 if dr < 0 else 1] = 1  # North (0) or South (1)
+    else:  # Horizontal movement dominates
+        direction_map[r1, c1, 2 if dc < 0 else 3] = 1  # West (2) or East (3)
+    
+    # Distance map - helps model understand move length
+    distance_map = np.zeros((11, 11))
+    distance_map[r1, c1] = max(abs(dr), abs(dc))
+    
+    # Legal moves map - helps model understand movement constraints
+    legal_moves_map = np.zeros((11, 11))
+    # Horizontal and vertical lines from start position
+    legal_moves_map[r1, :] = 1  # Horizontal line
+    legal_moves_map[:, c1] = 1  # Vertical line
+    # Remove blocked squares (pieces in the way)
+    for channel in [BLACK, WHITE, KING]:
+        legal_moves_map[board_state[channel] == 1] = 0
+    # Keep only the actual end position
+    legal_moves_map = legal_moves_map * end_map
+    
+    return {
+        'start_pos': start_map,
+        'end_pos': end_map,
+        'direction': direction_map,
+        'distance': distance_map,
+        'legal_moves': legal_moves_map
+    }
 
-    return start_map, end_map
+def update_history_channel(board_state, start, end, capture_pos=None):
+    """
+    Updates the history channel to track recent moves and captures.
+    
+    Args:
+        board_state: Current game state tensor
+        start: Starting position of the move
+        end: Ending position of the move
+        capture_pos: Optional position of captured piece
+    
+    Returns:
+        Updated board state with modified history channel
+    """
+    # Fade existing history (exponential decay)
+    board_state[HISTORY] *= 0.5
+    
+    # Mark the move path
+    r1, c1 = start
+    r2, c2 = end
+    
+    # Mark start and end positions
+    board_state[HISTORY, r1, c1] = 1
+    board_state[HISTORY, r2, c2] = 1
+    
+    # If there was a capture, mark it specially
+    if capture_pos is not None:
+        r3, c3 = capture_pos
+        board_state[HISTORY, r3, c3] = -1  # Negative value indicates capture
+    
+    return board_state
 
 def process_move(move_str):
-    """Process a single move string, handling various formats and special cases"""
+    """
+    Enhanced move processing that preserves capture information.
+    
+    Args:
+        move_str: String containing move in algebraic notation
+        
+    Returns:
+        Tuple of (start_pos, end_pos, capture_pos)
+    """
     if any(keyword in move_str.lower() for keyword in ['resigned', 'timeout', 'draw']):
-        return None, None
+        return None, None, None
     
     move_str = move_str.split('.')[-1].strip()  # Remove move numbers
-    move_str = move_str.split('x')[0].strip()   # Remove capture markers
+    
+    # Extract capture information before removing the 'x'
+    capture_pos = None
+    if 'x' in move_str:
+        try:
+            capture_part = move_str.split('x')[1]
+            if capture_part:
+                capture_pos = algebraic_to_index(capture_part)
+        except (ValueError, IndexError):
+            pass
+    
+    # Process the main move
+    move_str = move_str.split('x')[0].strip()
     
     if '-' not in move_str:
-        return None, None
+        return None, None, None
         
     try:
         start_str, end_str = move_str.split('-')
         start = algebraic_to_index(start_str)
         end = algebraic_to_index(end_str)
-        return start, end
+        return start, end, capture_pos
     except (ValueError, IndexError):
-        return None, None
+        return None, None, None
 
 def process_game(game_string):
-    """Process a single game and return training samples with game context"""
+    """
+    Process a single game with enhanced move encoding and history tracking.
+    
+    Args:
+        game_string: Raw game record string
+        
+    Returns:
+        List of enhanced game samples
+    """
     parts = game_string.split(',')
     if len(parts) < 3:
         return []
         
     winner = parts[0].strip().lower()
-    game_id = parts[1].strip()  # Game ID or move count
+    game_id = parts[1].strip()
     moves_list = parts[2].strip().split(' ')
     
     # Convert winner to numerical label
-    if any(keyword in winner for keyword in ['resigned', 'timeout', 'draw']):
-        winner_label = 0  # Draw or special case
-    else:
-        winner_label = 1 if "white" in winner else -1  # White wins: 1, Black wins: -1
+    winner_label = 1 if "white" in winner else (-1 if "black" in winner else 0)
     
     board = initialize_board()
-    game_samples = []  # Store all moves for this game
-    move_number = 0  # Track move number within game
-
-    print(f"\nProcessing Game {game_id}")
-    #print("Initial Board:")
-    #print_board(board)
+    game_samples = []
+    move_number = 0
+    total_moves = len([m for m in moves_list if '-' in m])  # Estimate total real moves
 
     for move in moves_list:
-        start, end = process_move(move)
-        if start is None or end is None:
+        start, end, capture_pos = process_move(move)
+        if start is None:
             continue
             
-        #print(f"Move {move_number + 1}: {move} ({start} -> {end})")
+        # Create enhanced move encoding
+        move_features = encode_move(start, end, board)
         
-        start_map, end_map = encode_move(start, end)
-        
-        # Store move sample without winner label
+        # Store move sample with all new features
         move_sample = {
             'board_state': board.copy(),
-            'start_pos': start_map,
-            'end_pos': end_map,
+            'move_features': move_features,
             'game_id': game_id,
             'move_number': move_number,
+            'total_moves': total_moves,
+            'move_phase': move_number / total_moves,
             'player_turn': 'white' if board[PLAYER].sum() > 0 else 'black',
             'move_text': move,
-            'winner': winner_label
+            'winner': winner_label,
+            'had_capture': capture_pos is not None
         }
         
         game_samples.append(move_sample)
@@ -177,12 +274,20 @@ def process_game(game_string):
         if piece_type is not None:
             board[piece_type, start[0], start[1]] = 0
             board[piece_type, end[0], end[1]] = 1
+            
+            # Update history channel
+            board = update_history_channel(board, start, end, capture_pos)
+
+        # Handle capture if any
+        if capture_pos:
+            for channel in [BLACK, WHITE, KING]:
+                if board[channel, capture_pos[0], capture_pos[1]] == 1:
+                    board[channel, capture_pos[0], capture_pos[1]] = 0
+                    break
 
         # Switch player
         board[PLAYER] = 1 - board[PLAYER]
         move_number += 1
-
-        #print_board(board)
 
     return game_samples
 
