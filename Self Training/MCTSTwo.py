@@ -24,6 +24,8 @@ class MCTS:
     def search(self, root_state):
         root = MCTSNode(root_state)
         
+        print_once = True
+        
         for _ in range(self.n_simulations):
             node = root
             search_path = [node]
@@ -41,7 +43,8 @@ class MCTS:
             
             if value == 0:
                 # Expansion
-                valid_moves = self.game.get_valid_moves(game_state)
+                valid_moves = self.game.get_valid_moves(game_state, print_once)
+                print_once = False
                 move_probs = self.game.get_move_probabilities(game_state, valid_moves)
                 
                 # Create children nodes

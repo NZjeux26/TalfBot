@@ -62,23 +62,23 @@ class PolicyValueNetwork(nn.Module):
         )
 
     def forward(self, x):
-        print(f"Input to conv_layers: {x.shape}")
+       # print(f"Input to conv_layers: {x.shape}")
         x = self.conv_layers(x)  # Extract features
-        print(f"After conv_layers: {x.shape}")
+        #print(f"After conv_layers: {x.shape}")
 
         # Predict start and end positions separately
         y_start_pred = self.policy_start_head(x)
         y_end_pred = self.policy_end_head(x)
-        print(f"y_start_pred shape: {y_start_pred.shape}")
-        print(f"y_end_pred shape: {y_end_pred.shape}")
+       # print(f"y_start_pred shape: {y_start_pred.shape}")
+        #print(f"y_end_pred shape: {y_end_pred.shape}")
 
         # Normalize outputs with softmax
         y_start_pred = torch.softmax(y_start_pred, dim=1)
         y_end_pred = torch.softmax(y_end_pred, dim=1)
-        print(f"Softmax applied: y_start_pred shape: {y_start_pred.shape}, y_end_pred shape: {y_end_pred.shape}")
+        #print(f"Softmax applied: y_start_pred shape: {y_start_pred.shape}, y_end_pred shape: {y_end_pred.shape}")
 
         # Predict value (winning probability)
         value = self.value_head(x)
-        print(f"value shape: {value.shape}")
+        #print(f"value shape: {value.shape}")
 
         return y_start_pred, y_end_pred, value

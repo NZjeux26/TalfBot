@@ -79,18 +79,20 @@ class HnefataflGame:
         end = (end_idx // self.BOARD_SIZE, end_idx % self.BOARD_SIZE)
         return start, end
     
-    def get_valid_moves(self, state):
+    def get_valid_moves(self, state, print_once = False):
         """Get all valid moves for current player with uniform probabilities"""
         is_black_turn = (state[self.PLAYER].sum() == 0)
-        valid_moves = []
         
         # Debug print
-        print(f"Checking moves for {'black' if is_black_turn else 'white'}")
+        if print_once:
+            print(f"Checking moves for {'black' if is_black_turn else 'white'}")
+        
+        valid_moves = []
         
         # Get pieces for current player
         if is_black_turn:
             piece_positions = np.where(state[self.BLACK] == 1)
-            print(f"Found {len(piece_positions[0])} black pieces")
+            #print(f"Found {len(piece_positions[0])} black pieces")
         else:
             white_positions = np.where(state[self.WHITE] == 1)
             king_positions = np.where(state[self.KING] == 1)
@@ -98,7 +100,7 @@ class HnefataflGame:
                 np.concatenate([white_positions[0], king_positions[0]]),
                 np.concatenate([white_positions[1], king_positions[1]])
             )
-            print(f"Found {len(piece_positions[0])} white pieces (including king)")
+            #print(f"Found {len(piece_positions[0])} white pieces (including king)")
             
         # Check all possible moves for each piece
         for i in range(len(piece_positions[0])):
@@ -114,7 +116,7 @@ class HnefataflGame:
                 if self._is_valid_move(state, start, (row, start[1])):
                     valid_moves.append((start, (row, start[1])))
                     
-        print(f"Generated {len(valid_moves)} valid moves")
+        #print(f"Generated {len(valid_moves)} valid moves")
         # Convert to dictionary with uniform probabilities
         if valid_moves:
             uniform_prob = 1.0 / len(valid_moves)
@@ -122,17 +124,30 @@ class HnefataflGame:
         return {}
     
     def get_policy_value_predictions(self, state):
-        """Get both policy and value predictions from the network"""
+        """Get both policy and value predictions from the network."""
         with torch.no_grad():
+            # Convert state to network input
             network_input = torch.FloatTensor(state).unsqueeze(0)
-            policy_output, value_output = self.policy_value_net(network_input)
-            
-            # Convert policy output to probabilities
-            policy_probs = F.softmax(policy_output, dim=1).squeeze(0).numpy()
-            value = value_output.item()
-            
-            return policy_probs, value
-    
+
+            # Pass through the policy-value network
+            start_probs, end_probs, value_output = self.policy_value_net(network_input)
+
+            # Debug the output
+           # print(f"start_probs shape: {start_probs.shape}")
+            #print(f"end_probs shape: {end_probs.shape}")
+           # print(f"value_output: {value_output}")  # Directly print value since it’s a scalar
+
+            # Convert outputs to numpy if necessary
+            if isinstance(start_probs, torch.Tensor):
+                start_probs = start_probs.numpy()  # Already (121,)
+            if isinstance(end_probs, torch.Tensor):
+                end_probs = end_probs.numpy()  # Already (121,)
+
+            # Ensure value is a scalar
+            value = float(value_output)  # Handle float directly
+
+            return start_probs, end_probs, value
+
     def _is_valid_move(self, state, start, end):
         """Check if move is valid"""
         if start == end:
