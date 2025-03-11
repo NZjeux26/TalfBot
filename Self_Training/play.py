@@ -49,11 +49,11 @@ def play_interactive_game():
     game = HnefataflGame(model_player.get_policy_value)
     
     # Initialize MCTS
-    mcts = MCTS(game, n_simulations=1600, c_puct=1.0)
+    mcts = MCTS(game, n_simulations=1900, c_puct=1.0)
     
     # Game settings
     human_player = input("Do you want to play as black or white? ").lower()
-    temperature = 1.0
+    temperature = 0.9
     
     state = game.get_initial_state()
     move_count = 0
@@ -67,7 +67,7 @@ def play_interactive_game():
         current_player = 'white' if state[game.PLAYER].sum() > 0 else 'black'
         
         # Get model's evaluation of position
-        _, _, value = game.get_policy_value_predictions(state) #issue is in here
+        _, _, value = game.get_policy_value_predictions(state)
         #policy_probs, value = game.get_policy_value_predictions(state)
         print(f"\nModel evaluation: {value:.3f}")
         
@@ -119,7 +119,7 @@ def play_interactive_game():
                 print(f"\nGame Over! {winner} wins in {move_count} moves!")
                 break
             
-            # Optional: adjust temperature as game progresses
+            # Optional: adjust temperature as game progresses ** could slow decrease or increase as the game goes on
             if move_count == 10:
                 temperature = 0.75
             elif move_count == 20:

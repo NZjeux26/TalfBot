@@ -291,48 +291,44 @@ class HnefataflGame:
         throne = (board_size // 2, board_size // 2)
         corners = [(0, 0), (0, board_size-1), (board_size-1, 0), (board_size-1, board_size-1)]
         
-        # Count attackers around the captured piece
+        # Count valid opposing attackers
+        # Count attackers and hostile squares
         attackers = 0
         hostile_squares = 0
-        
+
         for check_dir in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
             check_x = capture_x + check_dir[0]
             check_y = capture_y + check_dir[1]
-            
-            # Skip if out of bounds
+
+            # Ensure the check position is within bounds
             if not (0 <= check_x < board_size and 0 <= check_y < board_size):
-                if is_king:
-                    hostile_squares += 1
                 continue
-                
-            # Check if square contains an attacker
+
+            # Check if the square contains an attacker
             if is_black:
                 is_attacker = state[self.BLACK, check_x, check_y] == 1
             else:
                 is_attacker = (state[self.WHITE, check_x, check_y] == 1 or 
                             state[self.KING, check_x, check_y] == 1)
-                
+
+            # Check if the position is a hostile square (throne/corners)
+            is_hostile = ((check_x, check_y) == throne and not state[self.KING, throne[0], throne[1]]) or \
+                        ((check_x, check_y) in corners)
+
             if is_attacker:
                 attackers += 1
-                
-            # Check for hostile squares (throne, corners)
-            if (check_x, check_y) == throne and not state[self.KING, throne[0], throne[1]]:
+            elif is_hostile:
                 hostile_squares += 1
-            elif (check_x, check_y) in corners:
-                hostile_squares += 1
-                
+
         # Apply Copenhagen capture rules
         if is_king:
-            # King needs 4 attackers, or 3 if against hostile square
             required_attackers = 4 - hostile_squares
             if attackers >= required_attackers and required_attackers >= 3:
                 return (capture_x, capture_y)
         else:
-            # Regular pieces need 2 attackers or 1 attacker + hostile square
+            # Now correctly counts hostile squares towards capture
             if attackers + hostile_squares >= 2:
                 return (capture_x, capture_y)
-                
-        return None
     
     def print_state(self, state):
         # Use your existing print_board function

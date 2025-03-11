@@ -4,6 +4,7 @@ import glob
 # Mapping piece types to board channels
 BLACK, WHITE, KING, SPECIAL, HISTORY, PLAYER = 0, 1, 2, 3, 4, 5
 
+ 
 def algebraic_to_index(move):
     """Converts algebraic notation (e.g., "a1") to board indices (row, col)"""
     col = ord(move[0].lower()) - ord('a')  # Convert letter to index (a=0, ..., k=10)
