@@ -34,20 +34,24 @@ def test_simple_capture(game, initial_layout):
     print("Initial Board Layout:")
     print_board(initial_layout)
     
+    # Count Black pieces before the move
+    black_pieces_before = np.sum(initial_layout[game.BLACK])
+    
     # Make the move to capture the black piece
     move = ((6, 4), (6, 2))  # White moves from a7 to b7 to capture black This is assuming this move is black when we are moving white to capture black instead
     new_state = game.make_move(initial_layout, move)
+    new_state 
     
     # Print resulting board layout
     print("Resulting Board Layout:")
     print_board(new_state)
     
-    # Check if the black piece was captured using _get_captures
-    player_moving = game.WHITE  # Ensure we pass White as the player making the move
-    captures = game._get_captures(new_state, (7, 2), player_moving) #This isn't right, I don't think I should be calling .Get_captures. 
-            
-    print("Captures found:", captures)
-    assert (6, 2) in captures
+    # Count Black pieces after the move
+    black_pieces_after = np.sum(new_state[game.BLACK])
+
+    # Check if a Black piece was captured (count should decrease by one)
+    print(f"Black pieces before: {black_pieces_before}, after: {black_pieces_after}")
+    assert black_pieces_after == black_pieces_before - 1, "A Black piece should have been captured!"
 
 if __name__ == '__main__':
     pytest.main()
