@@ -9,7 +9,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Add the absolute paths
 sys.path.append(os.path.join(project_root, "Data_Conversion_and_Validation"))
 
-from converttomatrix import initialize_board, update_history_channel, print_board
+from converttomatrix import initialise_board, update_history_channel, print_board
 
 class HnefataflGame:
     # Channel indices
@@ -22,7 +22,7 @@ class HnefataflGame:
     
     def get_initial_state(self):
         """Initialize the 6-channel board state"""
-        return initialize_board()
+        return initialise_board()
     
     def get_policy_value_predictions(self, state):
         """Get start position, end position, and value predictions from the network"""
@@ -222,7 +222,7 @@ class HnefataflGame:
         # Check all four directions
         directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
         for dx, dy in directions:
-            capture_pos = self._check_capture(state, pos, (dx, dy), is_black)
+            capture_pos = self._check_capture(state, pos, (dx, dy), is_black) #checks every direction for a valid capture
             if capture_pos:
                 captures.append(capture_pos)
         

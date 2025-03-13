@@ -13,7 +13,7 @@ def algebraic_to_index(move):
     row = 10 - row
     return row, col
 
-def initialize_board():
+def initialise_board():
     """Initializes a Hnefatafl board (11x11) with the correct starting position"""
     board = np.zeros((6, 11, 11), dtype=np.float32)
     
@@ -44,9 +44,9 @@ def initialize_board():
     ])
     
     # Convert the single-channel representation to our multi-channel format
-    board[BLACK] = (initial_layout == 1).astype(np.float32)  # Black pieces
-    board[WHITE] = (initial_layout == 2).astype(np.float32)  # White pieces
-    board[KING] = (initial_layout == 3).astype(np.float32)   # King
+    board[BLACK] = (initial_layout == 1).astype(np.float32)  # Black pieces are ones
+    board[WHITE] = (initial_layout == 2).astype(np.float32)  # White pieces are twos
+    board[KING] = (initial_layout == 3).astype(np.float32)   # King is three
     
     # Mark special squares (corners and throne)
     corners = [(0, 0), (0, 10), (10, 0), (10, 10)]
@@ -236,7 +236,7 @@ def process_game(game_string):
     # Convert winner to numerical label
     winner_label = 1 if "white" in winner else (-1 if "black" in winner else 0)
     
-    board = initialize_board()
+    board = initialise_board()
     game_samples = []
     move_number = 0
     total_moves = len([m for m in moves_list if '-' in m])  # Estimate total real moves
