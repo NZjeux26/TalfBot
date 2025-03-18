@@ -226,6 +226,10 @@ class HnefataflGame:
             if capture_pos:
                 captures.append(capture_pos)
         
+        # Check for shield wall captures
+        shield_wall_captures = self._check_shield_wall_capture(state, pos)
+        captures.extend(shield_wall_captures)
+        
         return captures
     
     def get_game_ended(self, state):
@@ -242,21 +246,151 @@ class HnefataflGame:
         
         return 0  # Game not ended
     
+    def _check_shield_wall_capture(self, state, pos):
+        """
+        Check for shield wall captures according to Copenhagen rules:
+        - A row of 2+ pieces along the board edge can be captured together
+        - Both ends of the row must be bracketed by enemy pieces or corners
+        - Each piece in the wall must have an enemy piece directly in front of it
+
+        Args:
+            state: Current game state
+            pos: Position of the piece that just moved (x, y)
+
+        Returns:
+            List of positions of captured pieces if shield wall capture occurs, empty list otherwise
+        """
+        x, y = pos
+        board_size = state.shape[-1]
+        is_black = (state[self.PLAYER].sum() == 0)  # Current player before switch
+
+        # Only check for shield wall if the piece that moved is at the edge but not corner
+        if not ((x == 0 or x == board_size-1 or y == 0 or y == board_size-1) and 
+                not ((x == 0 and y == 0) or (x == 0 and y == board_size-1) or 
+                        (x == board_size-1 and y == 0) or (x == board_size-1 and y == board_size-1))):
+            return []
+
+        # Determine which edge we're on
+        on_top = (x == 0)
+        on_bottom = (x == board_size-1)
+        on_left = (y == 0)
+        on_right = (y == board_size-1)
+
+        # Determine the direction to check for opposing pieces (perpendicular to the edge)
+        front_dir = None
+        if on_top:
+            front_dir = (1, 0)  # Check downward
+        elif on_bottom:
+            front_dir = (-1, 0)  # Check upward
+        elif on_left:
+            front_dir = (0, 1)  # Check rightward
+        elif on_right:
+            front_dir = (0, -1)  # Check leftward
+
+        # Determine the direction along the edge
+        edge_dir = None
+        if on_top or on_bottom:
+            edge_dir = [(0, 1), (0, -1)]  # Check horizontally
+        else:
+            edge_dir = [(1, 0), (-1, 0)]  # Check vertically
+
+        # Define corner squares
+        corners = [(0, 0), (0, board_size-1), (board_size-1, 0), (board_size-1, board_size-1)]
+
+        # Check both directions along the edge for potential shield walls
+        captured_positions = []
+
+        for dx, dy in edge_dir:
+            # Find continuous rows of enemy pieces along the edge
+            wall_pieces = []
+            
+            # Start at current position and extend in current direction
+            curr_x, curr_y = x, y
+            
+            # Keep track of attacker positions at the ends
+            attacker_positions = []  # Will store tuples of (position, is_corner)
+            
+            # Check if the current position is an attacker
+            current_is_attacker = (is_black and state[self.BLACK, x, y] == 1) or \
+                                    (not is_black and (state[self.WHITE, x, y] == 1 or state[self.KING, x, y] == 1))
+            
+            if current_is_attacker:
+                attacker_positions.append(((x, y), False))
+            
+            # Search along the edge
+            while True:
+                curr_x += dx
+                curr_y += dy
+                
+                # Check if we're still in bounds and on the edge
+                if not (0 <= curr_x < board_size and 0 <= curr_y < board_size):
+                    break
+                    
+                # Check if we hit a corner (can be used as a bracketing piece)
+                if (curr_x, curr_y) in corners:
+                    attacker_positions.append(((curr_x, curr_y), True))
+                    break
+                    
+                # Check what piece is at this position
+                is_black_piece = state[self.BLACK, curr_x, curr_y] == 1
+                is_white_piece = state[self.WHITE, curr_x, curr_y] == 1
+                is_king = state[self.KING, curr_x, curr_y] == 1
+                
+                # Is this position part of the shield wall (enemy piece)?
+                is_enemy = (is_black and (is_white_piece or is_king)) or \
+                            (not is_black and is_black_piece)
+                
+                # Is this position an attacker (friendly piece)?
+                is_attacker = (is_black and is_black_piece) or \
+                                (not is_black and (is_white_piece or is_king))
+                
+                # If empty space, break
+                if not (is_enemy or is_attacker):
+                    break
+                    
+                # If we found an enemy piece, add to the wall
+                if is_enemy:
+                    # First, check if it has an attacker in front of it
+                    front_x = curr_x + front_dir[0]
+                    front_y = curr_y + front_dir[1]
+                    
+                    # Check if front position is in bounds
+                    if not (0 <= front_x < board_size and 0 <= front_y < board_size):
+                        break
+                    
+                    # Check if there's an attacker in front
+                    has_front_attacker = (is_black and state[self.BLACK, front_x, front_y] == 1) or \
+                                        (not is_black and (state[self.WHITE, front_x, front_y] == 1 or 
+                                                        state[self.KING, front_x, front_y] == 1))
+                    
+                    if has_front_attacker:
+                        wall_pieces.append((curr_x, curr_y))
+                    else:
+                        # No attacker in front, shield wall condition fails
+                        break
+                
+                # If we found another attacker, add to bracketing pieces
+                if is_attacker:
+                    attacker_positions.append(((curr_x, curr_y), False))
+                    break
+            
+            # Now check if we have a valid shield wall
+            if len(wall_pieces) >= 2 and len(attacker_positions) >= 2:
+                # Special rule: If king is part of wall, don't capture him
+                if not is_black:  # If white player (defenders) is moving
+                    # Filter out king positions from captures
+                    wall_pieces = [(x, y) for x, y in wall_pieces if not state[self.KING, x, y]]
+                
+                captured_positions.extend(wall_pieces)
+
+        return captured_positions
+
     def _check_capture(self, state, pos, direction, is_black):
         """
         Check for captures using Copenhagen rules:
         - Regular pieces need 2 attackers or 1 attacker + throne/corner/hostile piece
         - King needs 4 attackers (3 if against throne/corner)
-        - Captures are custodial (pieces must be adjacent)
-        
-        Args:
-            state: Current game state
-            pos: Position of the piece that just moved (x, y)
-            direction: Direction to check (dx, dy)
-            is_black: Boolean indicating if current player is black
-        
-        Returns:
-            Position of captured piece if capture occurs, None otherwise
+        - Captures are custodial (pieces must be adjacent and on opposite sides)
         """
         x, y = pos
         dx, dy = direction
@@ -291,44 +425,82 @@ class HnefataflGame:
         throne = (board_size // 2, board_size // 2)
         corners = [(0, 0), (0, board_size-1), (board_size-1, 0), (board_size-1, board_size-1)]
         
-        # Count valid opposing attackers
-        # Count attackers and hostile squares
-        attackers = 0
+        # The piece that just moved is an attacker
+        attackers = 1
+    
+    # Check if there's another attacker on the opposite side (for sandwiching)
+        opposite_x = capture_x + dx
+        opposite_y = capture_y + dy
+        
+        # Ensure the opposite position is within bounds
+        if not (0 <= opposite_x < board_size and 0 <= opposite_y < board_size):
+            opposite_attacker = False
+        else:
+            # Check if the opposite square contains an attacker
+            if is_black:
+                opposite_attacker = state[self.BLACK, opposite_x, opposite_y] == 1
+            else:
+                opposite_attacker = (state[self.WHITE, opposite_x, opposite_y] == 1 or 
+                            state[self.KING, opposite_x, opposite_y] == 1)
+        
+        # Check if the opposite position is a hostile square (throne/corners)
+        is_opposite_hostile = ((opposite_x, opposite_y) == throne and not state[self.KING, throne[0], throne[1]]) or \
+                            ((opposite_x, opposite_y) in corners)
+        
+        # For non-king pieces, we need either:
+        # 1. Two attackers sandwiching the piece, or
+        # 2. One attacker + a hostile square
+        if not is_king:
+            if (opposite_attacker or is_opposite_hostile):
+                return (capture_x, capture_y)
+            return None
+        
+        # For the king, special rules apply
+        # Count additional attackers and hostile squares
+        additional_attackers = 0
         hostile_squares = 0
-
-        for check_dir in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-            check_x = capture_x + check_dir[0]
-            check_y = capture_y + check_dir[1]
-
-            # Ensure the check position is within bounds
-            if not (0 <= check_x < board_size and 0 <= check_y < board_size):
+        
+        # Check the other sides (perpendicular to the direction of movement)
+        perp_dirs = []
+        if dx != 0:  # If moving horizontally, check vertical positions
+            perp_dirs = [(0, 1), (0, -1)]
+        else:  # If moving vertically, check horizontal positions
+            perp_dirs = [(1, 0), (-1, 0)]
+        
+        for perp_dx, perp_dy in perp_dirs:
+            adj_x = capture_x + perp_dx
+            adj_y = capture_y + perp_dy
+            
+            # Ensure the position is within bounds
+            if not (0 <= adj_x < board_size and 0 <= adj_y < board_size):
                 continue
-
+            
             # Check if the square contains an attacker
             if is_black:
-                is_attacker = state[self.BLACK, check_x, check_y] == 1
+                is_adj_attacker = state[self.BLACK, adj_x, adj_y] == 1
             else:
-                is_attacker = (state[self.WHITE, check_x, check_y] == 1 or 
-                            state[self.KING, check_x, check_y] == 1)
-
-            # Check if the position is a hostile square (throne/corners)
-            is_hostile = ((check_x, check_y) == throne and not state[self.KING, throne[0], throne[1]]) or \
-                        ((check_x, check_y) in corners)
-
-            if is_attacker:
-                attackers += 1
-            elif is_hostile:
+                is_adj_attacker = (state[self.WHITE, adj_x, adj_y] == 1 or 
+                        state[self.KING, adj_x, adj_y] == 1)
+            
+            # Check if the position is a hostile square
+            is_adj_hostile = ((adj_x, adj_y) == throne and not state[self.KING, throne[0], throne[1]]) or \
+                        ((adj_x, adj_y) in corners)
+            
+            if is_adj_attacker:
+                additional_attackers += 1
+            elif is_adj_hostile:
                 hostile_squares += 1
-
-        # Apply Copenhagen capture rules
-        if is_king:
-            required_attackers = 4 - hostile_squares
-            if attackers >= required_attackers and required_attackers >= 3:
-                return (capture_x, capture_y)
-        else:
-            # Now correctly counts hostile squares towards capture
-            if attackers + hostile_squares >= 2:
-                return (capture_x, capture_y)
+        
+        # Apply Copenhagen capture rules for king
+        total_attackers = attackers + additional_attackers + (1 if opposite_attacker else 0)
+        total_hostiles = hostile_squares + (1 if is_opposite_hostile else 0)
+        
+        # King needs 4 attackers or fewer if against hostile squares
+        required_attackers = 4 - total_hostiles
+        if total_attackers >= required_attackers and required_attackers >= 3:
+            return (capture_x, capture_y)
+        
+        return None
     
     def print_state(self, state):
         # Use your existing print_board function

@@ -44,6 +44,10 @@ class ModelPlayer:
             return start_probs, end_probs, value
 
 def play_interactive_game():
+    
+    # Simulations: Number of MCTS rollouts per move; higher = stronger play, slower computation
+    # c_puct: Exploration constant; higher = more exploration, lower = more exploitation
+    # Temperature: Controls move randomness after MCTS; lower = more deterministic, higher = more varied
     # Initialize components
     model_player = ModelPlayer("hnefatafl_policy_value_model.pth")
     game = HnefataflGame(model_player.get_policy_value)
