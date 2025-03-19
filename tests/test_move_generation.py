@@ -252,6 +252,51 @@ def test_offset_capture(game, initial_layout):
     print(f"Pieces before: {pieces_before}, after: {pieces_after}")
     assert pieces_after == pieces_before - 0, "A piece should have been captured!"
 
-#add horizonital captures
+def test_surrounded_king(game, initial_layout):
+    #Surounding the king
+    initial_layout[game.BLACK, 3, 3] = 1
+    initial_layout[game.BLACK, 3, 4] = 1
+    initial_layout[game.BLACK, 3, 5] = 1
+    initial_layout[game.BLACK, 3, 6] = 1
+    initial_layout[game.BLACK, 3, 7] = 1
+    
+    initial_layout[game.BLACK, 4, 8] = 1
+    initial_layout[game.BLACK, 5, 8] = 1
+    initial_layout[game.BLACK, 6, 8] = 1
+    
+    initial_layout[game.BLACK, 4, 2] = 1
+    initial_layout[game.BLACK, 5, 2] = 1
+    initial_layout[game.BLACK, 6, 2] = 1
+    
+    initial_layout[game.BLACK, 7, 3] = 1
+    initial_layout[game.BLACK, 7, 4] = 1
+    initial_layout[game.BLACK, 7, 5] = 1
+    initial_layout[game.BLACK, 7, 6] = 1
+    initial_layout[game.BLACK, 7, 7] = 1
+    
+    initial_layout[game.WHITE, 4, 5] = 1
+    initial_layout[game.WHITE, 6, 5] = 1
+    initial_layout[game.WHITE, 5, 4] = 1
+    initial_layout[game.WHITE, 5, 6] = 1
+    
+    initial_layout[game.KING, 5, 5] = 1
+    
+    #Print initial board layout
+    print("Initial Board Layout:")
+    print_board(initial_layout)
+    
+    initial_layout[game.PLAYER] = np.ones_like(initial_layout[game.PLAYER]) #force Black's turn
+    
+    # Check if game has ended by encirclement
+    game_result = game.get_game_ended(initial_layout)
+    
+    # Print result
+    print(f"Game result: {game_result}")
+    print("1 means black (attackers) win, 0 means game continues")
+    
+    # Assert that black has won by encirclement
+    assert game_result == 1, "Game should end with attackers (black) winning by encirclement!"
+
+
 if __name__ == '__main__':
     pytest.main()

@@ -232,6 +232,79 @@ class HnefataflGame:
         
         return captures
     
+    def check_encirclement(self, state):
+        """
+        Check if the attackers (black pieces) have completely surrounded the king 
+        and all defenders with an unbroken ring.
+        
+        Returns:
+            bool: True if encirclement is complete, False otherwise
+        """
+        board_size = state.shape[-1]
+        
+        # Create a merged board showing all pieces
+        # 0: empty, 1: black (attackers), 2: white/king (defenders)
+        merged_board = np.zeros((board_size, board_size), dtype=np.int8)
+        
+        # Mark attackers as 1
+        merged_board[np.where(state[self.BLACK] == 1)] = 1
+        
+        # Mark defenders (white pieces and king) as 2
+        merged_board[np.where(state[self.WHITE] == 1)] = 2
+        merged_board[np.where(state[self.KING] == 1)] = 2
+        
+        # Find all defenders
+        defender_squares = np.where(merged_board == 2)
+        defender_coords = list(zip(defender_squares[0], defender_squares[1]))
+        
+        if not defender_coords:
+            return False  # No defenders left
+        
+        # Find all empty squares
+        empty_squares = np.where(merged_board == 0)
+        empty_coords = set(zip(empty_squares[0], empty_squares[1]))
+        
+        # Get corners and edges
+        corners = [(0, 0), (0, board_size-1), (board_size-1, 0), (board_size-1, board_size-1)]
+        edges = set()
+        for i in range(board_size):
+            edges.add((0, i))
+            edges.add((i, 0))
+            edges.add((board_size-1, i))
+            edges.add((i, board_size-1))
+        
+        # Start flood fill from any defender
+        start_x, start_y = defender_coords[0]
+        queue = [(start_x, start_y)]
+        visited = set([(start_x, start_y)])
+        can_reach_edge = False
+        
+        # Perform BFS flood fill
+        while queue and not can_reach_edge:
+            x, y = queue.pop(0)
+            
+            # Check if we reached an edge
+            if (x, y) in edges:
+                can_reach_edge = True
+                break
+            
+            # Check all four adjacent squares
+            for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                nx, ny = x + dx, y + dy
+                
+                # Ensure we're within bounds
+                if not (0 <= nx < board_size and 0 <= ny < board_size):
+                    continue
+                
+                # If this is an empty square or defender we haven't visited yet
+                if ((merged_board[nx, ny] == 0 or merged_board[nx, ny] == 2) and 
+                    (nx, ny) not in visited):
+                    queue.append((nx, ny))
+                    visited.add((nx, ny))
+        
+        # If defenders can't reach an edge, they're completely surrounded
+        return not can_reach_edge
+
     def get_game_ended(self, state):
         """Check if game is over and return winner"""
         # Check if king reached corner
@@ -244,6 +317,10 @@ class HnefataflGame:
             if state[self.SPECIAL, kr, kc] == 1 and (kr in [0, 10] or kc in [0, 10]):
                 return -1 if state[self.PLAYER].sum() == 0 else 1
         
+        # Check for encirclement win condition
+        if self.check_encirclement(state):
+            return 1
+    
         return 0  # Game not ended
     
     def _check_shield_wall_capture(self, state, pos):
