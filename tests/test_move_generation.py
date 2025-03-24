@@ -252,6 +252,7 @@ def test_offset_capture(game, initial_layout):
     print(f"Pieces before: {pieces_before}, after: {pieces_after}")
     assert pieces_after == pieces_before - 0, "A piece should have been captured!"
 
+#Tests for the game ending by encirclement
 def test_surrounded_king(game, initial_layout):
     #Surounding the king
     initial_layout[game.BLACK, 3, 3] = 1
@@ -297,6 +298,97 @@ def test_surrounded_king(game, initial_layout):
     # Assert that black has won by encirclement
     assert game_result == 1, "Game should end with attackers (black) winning by encirclement!"
 
+#Tests the perpetial movement rule.
+def test_move_repetition(game, initial_layout):
+    # Set up a test scenario where pieces will move back and forth
+    
+    # Setup white pieces (defenders)
+    initial_layout[game.WHITE, 5, 5] = 1  # Center piece
+    initial_layout[game.WHITE, 5, 6] = 1  # Adjacent piece
+    
+    # Setup black pieces (attackers)
+    initial_layout[game.BLACK, 3, 5] = 1
+    initial_layout[game.BLACK, 3, 6] = 1
+    
+    # Print initial board layout
+    print("Initial Board Layout:")
+    print_board(initial_layout)
+    
+    # Create a move history list
+    move_history = []
+    
+    # Create a repeating sequence of 4 moves
+    repeating_sequence = [
+        ((3, 5), (3, 4)),  # Black moves left
+        ((5, 5), (5, 4)),  # White moves left
+        ((3, 4), (3, 5)),  # Black moves right
+        ((5, 4), (5, 5))   # White moves right
+    ]
+    
+    # Repeat the sequence 3 times
+    state = initial_layout.copy()
+    
+    # Make moves and check for repetition
+    for _ in range(3):  # Repeat 3 times
+        for move in repeating_sequence:
+            move_history.append(move)
+            state = game.make_move(state, move)
+            
+    # Check if the last sequence is repeated
+    repetition_detected = game.check_move_repetition(move_history[-12:], repeating_sequence[-1])
+    
+    # Assert that repetition was detected
+    assert repetition_detected == True, "Move repetition should be detected after 3 cycles"
+    
+    # Test non-repeating sequence
+    move_history = []
+    state = initial_layout.copy()
+    different_moves = [
+        ((3, 5), (3, 4)),  # Different sequence of moves
+        ((5, 5), (5, 4)),
+        ((3, 4), (3, 3)),
+        ((5, 4), (5, 3))
+    ]
+    
+    # Make non-repeating moves
+    for move in different_moves:
+        move_history.append(move)
+        state = game.make_move(state, move)
+    
+    # Check if repetition is detected for non-repeating moves
+    repetition_detected = game.check_move_repetition(move_history, different_moves[-1])
+    
+    # Assert that no repetition was detected
+    assert repetition_detected is None, "No repetition should be detected for different moves"
+    
+    # Add new test case for king movement repetition
+    move_history = []
+    state = initial_layout.copy()
+    
+    # Setup pieces for king movement test
+    state[game.KING, 5, 5] = 1  # King in center
+    state[game.BLACK, 3, 5] = 1  # Black piece
+    state[game.WHITE, 5, 6] = 1  # White piece
+    
+    # Create a repeating sequence with king movement
+    king_sequence = [
+        ((3, 5), (3, 4)),  # Black moves left
+        ((5, 5), (5, 4)),  # King moves left
+        ((3, 4), (3, 5)),  # Black moves right
+        ((5, 4), (5, 5))   # King moves right
+    ]
+    
+    # Repeat the sequence 3 times
+    for _ in range(3):
+        for move in king_sequence:
+            move_history.append(move)
+            state = game.make_move(state, move)
+    
+    # Check if the last sequence is repeated
+    repetition_detected = game.check_move_repetition(move_history[-12:], king_sequence[-1])
+    
+    # Assert that repetition was detected
+    assert repetition_detected == True, "King move repetition should be detected after 3 cycles"
 
 if __name__ == '__main__':
     pytest.main()

@@ -305,6 +305,45 @@ class HnefataflGame:
         # If defenders can't reach an edge, they're completely surrounded
         return not can_reach_edge
 
+    def check_move_repetition(self, move_history, current_move):
+        """
+        Check for perpetual repetition based on move sequences.
+        Tracks recent moves and detects repetitive patterns.
+        
+        Args:
+            move_history: List of recent moves [(start1, end1), (start2, end2), ...]
+            current_move: The move just made (start, end)
+            
+        Returns:
+            True if repetition is detected (3 identical sequences), None otherwise
+        """
+        # Add the current move to history
+        if current_move not in move_history:
+            move_history.append(current_move)
+        
+        # Limit history size to prevent excessive memory usage
+        if len(move_history) > 30:  # Keep only the last 30 moves
+            move_history = move_history[-30:]
+        
+        # Look for sequences of 4 moves (2 moves by each player)
+        seq_length = 4
+        
+        if len(move_history) >= 3 * seq_length:
+            # Check the last sequence
+            latest_seq = move_history[-seq_length:]
+            
+            # Check if this sequence appears 3 times in total
+            count = 0
+            for i in range(0, len(move_history) - seq_length + 1, seq_length):
+                current_seq = move_history[i:i+seq_length]
+                if current_seq == latest_seq:
+                    count += 1
+            
+            if count >= 3:
+                return True
+        
+        return None
+    
     def get_game_ended(self, state):
         """Check if game is over and return winner"""
         # Check if king reached corner

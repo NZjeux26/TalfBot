@@ -48,16 +48,25 @@ def play_interactive_game():
     # Simulations: Number of MCTS rollouts per move; higher = stronger play, slower computation
     # c_puct: Exploration constant; higher = more exploration, lower = more exploitation
     # Temperature: Controls move randomness after MCTS; lower = more deterministic, higher = more varied
+    
+    # Initialize move history for repetition detection
+    move_history = []
+    
     # Initialize components
     model_player = ModelPlayer("hnefatafl_policy_value_model.pth")
     game = HnefataflGame(model_player.get_policy_value)
     
     # Initialize MCTS
-    mcts = MCTS(game, n_simulations=1900, c_puct=1.0)
+    mcts = MCTS(game, n_simulations=2000, c_puct=1.3)
     
-    # Game settings
-    human_player = input("Do you want to play as black or white? ").lower()
-    temperature = 0.9
+    # Game settings, choose colour, with validation
+    while True:
+        human_player = input("Do you want to play as black or white? ").lower()
+        if human_player in ['black', 'white']:
+            break
+        print("Please enter either 'black' or 'white'")
+    
+    temperature = 1.0
     
     state = game.get_initial_state()
     move_count = 0
@@ -115,6 +124,12 @@ def play_interactive_game():
             state = game.make_move(state, move)
             move_count += 1
             
+            # Check for repetition (after the move is made)
+            if game.check_move_repetition(move_history, move):
+                game.print_state(state)
+                print("\nGame Over! Black wins by perpetual repetition!")
+                break
+            
             # Check for game end
             game_result = game.get_game_ended(state)
             if game_result != 0:
@@ -125,7 +140,7 @@ def play_interactive_game():
             
             # Optional: adjust temperature as game progresses ** could slow decrease or increase as the game goes on
             if move_count == 10:
-                temperature = 0.75
+                temperature = 0.7
             elif move_count == 20:
                 temperature = 0.5
                 
