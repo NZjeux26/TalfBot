@@ -80,7 +80,7 @@ class SelfPlay:
             elif len(train_examples) < 45:    # Mid-game
                 temperature = 0.7
             else:                            # End-game
-                    temperature = 0.4
+                temperature = 0.4
         return train_examples
     
     def self_play(self):
@@ -137,8 +137,10 @@ class SelfPlayTrainer:
         # Load existing model if provided
         if model_path and os.path.exists(model_path):
             print(f"Loading model from {model_path}")
-            state_dict = torch.load(model_path, map_location=device, weights_only=True)
+            # Load to CPU first, then move to target device
+            state_dict = torch.load(model_path, map_location='cpu', weights_only=False)
             self.model.load_state_dict(state_dict)
+            self.model = self.model.to(device)  # Move model to target device
         else:
             print("Starting with random model weights")
         
@@ -291,7 +293,7 @@ class SelfPlayTrainer:
             pickle.dump(self.training_examples, f)
         print(f"Training examples saved to {examples_path}")
     
-    def train(self, num_iterations=10, args=None):
+    def train(self, num_iterations=None, args=None):
         """Main training loop"""
         if args is None:
             raise ValueError("Training arguments must be provided")
@@ -347,13 +349,15 @@ def main():
     # Training configuration
     training_args = {
         'c_puct': 1.0,              # MCTS exploration constant
-        'n_simulations': 800,       # MCTS simulations per move
+        'n_simulations': 1,       # MCTS simulations per move
         'temperature': 1.0,         # Move selection temperature
-        'num_games': 25,            # Games per iteration
+        'num_games': 1,            # Games per iteration
         'learning_rate': 0.001,     # Neural network learning rate
         'batch_size': 32,           # Training batch size
         'min_examples': 1000,       # Minimum examples before training starts
-        'epochs': 5                 # Training epochs per iteration
+        'epochs': 5,                 # Training epochs per iteration
+        'num_iterations': 10
+        
     }
     
     # Initialize trainer
@@ -362,7 +366,7 @@ def main():
     )
     
     # Start training
-    num_iterations = 20  # Adjust as needed
+    num_iterations = training_args['num_iterations']
     trainer.train(num_iterations, training_args)
     
     # Final comprehensive evaluation if evaluation framework is available
