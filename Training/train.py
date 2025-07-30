@@ -30,7 +30,7 @@ optimizer = optim.Adam(model.parameters(), lr=0.001)
 scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=3, factor=0.1)
 
 # Training Stats
-EPOCHS = 10
+EPOCHS = 5
 train_losses, val_losses = [], []
 train_accuracies, val_accuracies = [], []
 
@@ -64,7 +64,7 @@ for epoch in range(EPOCHS):
         value_loss = value_loss_fn(value_pred, y_winner_batch)
 
         # Total loss
-        total_loss = start_loss + end_loss + value_loss
+        total_loss = start_loss + end_loss + (0.01 * value_loss)
 
         # Backpropagation
         optimizer.zero_grad()
@@ -117,22 +117,25 @@ for epoch in range(EPOCHS):
 
             correct_val += ((predicted_start == y_start_indices) & (predicted_end == y_end_indices)).sum().item()
             total_val_samples += y_start_indices.size(0)
-
+    
     # Compute average validation loss & accuracy
     avg_val_loss = total_val_loss / len(val_loader)
     val_accuracy = correct_val / total_val_samples
 
+    scheduler.step(avg_val_loss)
+    
     # Store results for graphing
     train_losses.append(avg_train_loss)
     val_losses.append(avg_val_loss)
     train_accuracy = correct_train / total_train_samples
     val_accuracy = correct_val / total_val_samples
-
+    
     print(f"⏳ Epoch {epoch+1}/{EPOCHS} - Train Loss: {avg_train_loss:.4f}, Train Acc: {train_accuracy:.4f} | Val Loss: {avg_val_loss:.4f}, Val Acc: {val_accuracy:.4f} - Time: {epoch_timer.elapsed():.2f}s")
 
 torch.save(model.state_dict(), "hnefatafl_policy_value_model.pth")
 print(f"\n✅ Training completed in {timer.elapsed():.2f} seconds")
 print("\n📊 Evaluating final model performance...")
+
 # After training your model
 metrics = evaluate_model(
     model_path="hnefatafl_policy_value_model.pth",

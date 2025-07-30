@@ -10,7 +10,7 @@ print(f"🚀 Using device: {device}")
 # Load dataset
 def load_data():
     print("\nLoading dataset...")
-    data = np.load("data/hnefatafl_dataset.npz")
+    data = np.load("data/hnefatafl_dataset_small.npz")
 
     # Extract raw NumPy data before converting to tensors
     X_boards = data["X_boards"]
@@ -29,9 +29,9 @@ def load_data():
 
     # Let's create a three-way split: 70% train, 15% validation, 15% test
     total_samples = len(X_boards)
-    train_size = int(0.7 * total_samples)
-    val_size = int(0.15 * total_samples)
-    test_size = total_samples - train_size - val_size
+    train_size = int(0.75 * total_samples)
+    val_size = int(0.10 * total_samples)
+    test_size = int(0.15 * total_samples)
 
     # Create random indices for the entire dataset
     indices = torch.randperm(total_samples)
