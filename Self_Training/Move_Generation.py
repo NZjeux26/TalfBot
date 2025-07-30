@@ -24,19 +24,6 @@ class HnefataflGame:
         """Initialize the 6-channel board state"""
         return initialise_board()
     
-    def get_policy_value_predictions(self, state):
-        """Get start position, end position, and value predictions from the network"""
-        with torch.no_grad():
-            network_input = torch.FloatTensor(state).unsqueeze(0)
-            start_probs, end_probs, value = self.policy_value_net(network_input)
-            
-            # Convert to numpy arrays
-            start_probs = start_probs.squeeze(0).numpy()  # Shape: (121,)
-            end_probs = end_probs.squeeze(0).numpy()      # Shape: (121,)
-            value = value.item()
-            
-            return start_probs, end_probs, value
-    
     def get_move_probabilities(self, state, valid_moves):
         """
         Convert network outputs to valid move probabilities
@@ -83,9 +70,9 @@ class HnefataflGame:
         """Get all valid moves for current player with uniform probabilities"""
         is_black_turn = (state[self.PLAYER].sum() == 0)
         
-        # Debug print
-        if print_once:
-            print(f"Checking moves for {'black' if is_black_turn else 'white'}")
+        # # Debug print
+        # if print_once:
+        #     print(f"Checking moves for {'black' if is_black_turn else 'white'}")
         
         valid_moves = []
         
@@ -115,36 +102,39 @@ class HnefataflGame:
             for row in range(self.BOARD_SIZE):
                 if self._is_valid_move(state, start, (row, start[1])):
                     valid_moves.append((start, (row, start[1])))
-                    
-        #print(f"Generated {len(valid_moves)} valid moves")
-        # Convert to dictionary with uniform probabilities
-        if valid_moves:
-            uniform_prob = 1.0 / len(valid_moves)
-            return {move: uniform_prob for move in valid_moves}
-        return {}
+        return valid_moves
+      
     
     def get_policy_value_predictions(self, state):
         """Get both policy and value predictions from the network."""
         with torch.no_grad():
-            # Convert state to network input
-            network_input = torch.FloatTensor(state).unsqueeze(0)
+            # Handle different state formats
+            if len(state.shape) == 3 and state.shape[0] == 6:  # Expected [6, 11, 11]
+                network_input = torch.FloatTensor(state).unsqueeze(0)
+            else:
+                network_input = torch.FloatTensor(state)
+                if len(network_input.shape) == 3:
+                    network_input = network_input.unsqueeze(0)
 
             # Pass through the policy-value network
             start_probs, end_probs, value_output = self.policy_value_net(network_input)
 
-            # Debug the output
-           # print(f"start_probs shape: {start_probs.shape}")
-            #print(f"end_probs shape: {end_probs.shape}")
-           # print(f"value_output: {value_output}")  # Directly print value since it’s a scalar
-
-            # Convert outputs to numpy if necessary
+            # Convert outputs to numpy arrays with proper tensor handling
             if isinstance(start_probs, torch.Tensor):
-                start_probs = start_probs.numpy()  # Already (121,)
+                start_probs = start_probs.squeeze(0).cpu().numpy()
+            else:
+                start_probs = np.array(start_probs)
+                
             if isinstance(end_probs, torch.Tensor):
-                end_probs = end_probs.numpy()  # Already (121,)
+                end_probs = end_probs.squeeze(0).cpu().numpy()
+            else:
+                end_probs = np.array(end_probs)
 
             # Ensure value is a scalar
-            value = float(value_output)  # Handle float directly
+            if isinstance(value_output, torch.Tensor):
+                value = value_output.squeeze().cpu().item()
+            else:
+                value = float(value_output)
 
             return start_probs, end_probs, value
 
