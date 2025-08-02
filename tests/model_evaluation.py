@@ -66,6 +66,9 @@ class ModelEvaluator:
         move_count = 0
         max_moves = 200  # Prevent infinite games
         
+        # Initialize move history for repetition detection
+        move_history = []
+        
         while move_count < max_moves:
             current_player = 'black' if state[game1.PLAYER].sum() == 0 else 'white'
             
@@ -78,6 +81,13 @@ class ModelEvaluator:
             else:
                 action_probs = mcts2.get_action_probs(state, temperature=0.1)
             
+            # Get valid moves for current position, if none break
+            valid_moves = self.game.get_valid_moves(state)
+            if not valid_moves:
+                print(f"No valid moves available for {current_player}!")
+                game_result = 1 if current_player == 'black' else -1
+                break
+            
             # Select best move
             moves, probs = zip(*action_probs.items())
             move = moves[np.argmax(probs)]
@@ -85,6 +95,12 @@ class ModelEvaluator:
             # Make move
             state = game1.make_move(state, move)
             move_count += 1
+            
+            # Check for repetition (after the move is made)
+            if self.game.check_move_repetition(move_history, move):
+                self.game.print_state(state)
+                print("\nGame Over! Black wins by perpetual repetition!")
+                break
             
             # Check for game end
             result = game1.get_game_ended(state)

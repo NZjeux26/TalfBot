@@ -17,7 +17,7 @@ sys.path.append(os.path.join(project_root, "tests"))
 from model import PolicyValueNetwork
 from MCTSTwo import MCTS
 from Move_Generation import HnefataflGame
-from utils import get_device
+from utils import get_device, Timer
 # Import evaluation framework
 try:
     from model_evaluation import comprehensive_evaluation
@@ -41,8 +41,19 @@ class SelfPlay:
         train_examples = []
         state = self.game.get_initial_state()
         temperature = self.temperature
+        current_player = 'white' if state[self.game.PLAYER].sum() > 0 else 'black'
+        # Initialize move history for repetition detection
+        move_history = []
         
-        while True:
+        #this is where the game loop starts it is missing the added functionality to check for repetition. that was put into the human version
+        while True: 
+            # Get valid moves for current position, if none break
+            valid_moves = self.game.get_valid_moves(state)
+            if not valid_moves:
+                print(f"No valid moves available for {current_player}!")
+                game_result = 1 if current_player == 'black' else -1
+                break
+            
             # Get MCTS action probabilities
             action_probs = self.mcts.get_action_probs(state, temperature)
             
@@ -59,6 +70,12 @@ class SelfPlay:
             
             # Execute move
             state = self.game.make_move(state, move)
+            
+             # Check for repetition (after the move is made)
+            if self.game.check_move_repetition(move_history, move):
+                self.game.print_state(state)
+                print("\nGame Over! Black wins by perpetual repetition!")
+                break
             
             # Check if game is ended
             game_result = self.game.get_game_ended(state)
@@ -93,40 +110,6 @@ class SelfPlay:
             all_examples.extend(examples)
             
         return all_examples
-
-def train_network(model, examples, args):
-    """Train the network using self-play examples"""
-    optimiser = torch.optim.Adam(model.parameters(), lr=args['learning_rate'])
-    batch_size = args['batch_size']
-    
-    # Convert examples to tensors
-    states = torch.FloatTensor([ex['state'] for ex in examples])
-    action_probs = torch.FloatTensor([list(ex['action_probs'].values()) for ex in examples])
-    values = torch.FloatTensor([ex['value'] for ex in examples])
-    
-    dataset = torch.utils.data.TensorDataset(states, action_probs, values)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    
-    model.train()
-    
-    for batch_idx, (state, target_probs, target_value) in enumerate(dataloader):
-        optimiser.zero_grad()
-        
-        # Forward pass
-        start_probs, end_probs, value = model(state)
-        
-        # Calculate loss
-        policy_loss = -(target_probs * torch.log(start_probs)).sum(dim=1).mean()
-        policy_loss += -(target_probs * torch.log(end_probs)).sum(dim=1).mean()
-        value_loss = ((value - target_value) ** 2).mean()
-        total_loss = policy_loss + value_loss
-        
-        # Backward pass
-        total_loss.backward()
-        optimiser.step()
-    
-    model.eval()
-    
 class SelfPlayTrainer:
     def __init__(self, model_path=None, device=None):
         self.device = get_device() #turns out all other versions are putting the device call in the method call.
@@ -149,7 +132,7 @@ class SelfPlayTrainer:
         
         # Training examples storage
         self.training_examples = []
-        self.max_examples = 400000  # Keep last N examples was 200k
+        self.max_examples = 100000  # Keep last N examples was 200k
         
     def get_policy_value(self, state):
         """Get policy and value predictions from the model - wrapper for HnefataflGame"""
@@ -175,6 +158,9 @@ class SelfPlayTrainer:
         """Execute one iteration of self-play and training"""
         print(f"\n=== Self-Play Iteration {iteration} ===")
         
+        #timer start
+        iteration_timer = Timer()
+        
         # Execute self-play games
         print(f"Generating {args['num_games']} self-play games...")
         self_play = SelfPlay(self.game, self.model, args)
@@ -194,6 +180,7 @@ class SelfPlayTrainer:
             print("Training neural network...")
             self._train_network_updated(self.training_examples, args)
             print("Training completed")
+            print(f"Iteration {iteration} completed in {iteration_timer.elapsed():.2f} seconds")
         else:
             print(f"Need {args['min_examples']} examples to start training, have {len(self.training_examples)}")
     
@@ -223,7 +210,7 @@ class SelfPlayTrainer:
                 start_probs[start_idx] += prob
                 end_probs[end_idx] += prob
             
-            # Normalize probabilities
+            # Normalise probabilities
             if start_probs.sum() > 0:
                 start_probs = start_probs / start_probs.sum()
             if end_probs.sum() > 0:
@@ -247,7 +234,7 @@ class SelfPlayTrainer:
         for epoch in range(epochs):
             total_loss = 0
             batches = 0
-            
+            epoch_timer = Timer()
             for batch_idx, (state_batch, start_target, end_target, value_target) in enumerate(dataloader):
                 optimizer.zero_grad()
                 
@@ -271,7 +258,7 @@ class SelfPlayTrainer:
             
             if epoch == 0 or (epoch + 1) % 2 == 0:
                 avg_loss = total_loss / batches if batches > 0 else 0
-                print(f"  Epoch {epoch + 1}/{epochs}, Average Loss: {avg_loss:.4f}")
+                print(f"  Epoch {epoch + 1}/{epochs}, Average Loss: {avg_loss:.4f}, Time: {epoch_timer.elapsed():.2f}s")
         
         self.model.eval()
     
@@ -300,7 +287,7 @@ class SelfPlayTrainer:
         
         print("Starting self-play training...")
         print(f"Configuration: {args}")
-        
+        traintimer = Timer()
         for iteration in range(1, num_iterations + 1):
             try:
                 # Execute self-play and training
@@ -343,20 +330,21 @@ class SelfPlayTrainer:
         
         # Final save
         final_model_path = self.save_model("final")
-        print(f"\nTraining completed! Final model saved to: {final_model_path}")
+        print(f"\nTraining completed in {traintimer.elapsed():.2f} seconds")
+        print(f"\nFinal model saved to: {final_model_path}")
 
 def main():
     # Training configuration
     training_args = {
         'c_puct': 1.0,              # MCTS exploration constant
-        'n_simulations': 1,       # MCTS simulations per move
+        'n_simulations': 10,       # MCTS simulations per move must be > 0
         'temperature': 1.0,         # Move selection temperature
         'num_games': 1,            # Games per iteration
         'learning_rate': 0.001,     # Neural network learning rate
         'batch_size': 32,           # Training batch size
         'min_examples': 1000,       # Minimum examples before training starts
         'epochs': 5,                 # Training epochs per iteration
-        'num_iterations': 10
+        'num_iterations': 2
         
     }
     
