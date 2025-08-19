@@ -49,7 +49,7 @@ def play_interactive_game():
     # c_puct: Exploration constant; higher = more exploration, lower = more exploitation
     # Temperature: Controls move randomness after MCTS; lower = more deterministic, higher = more varied
     
-    # Initialize move history for repetition detection
+    # Initialize move history for repetition detection * nothing is actually added to this
     move_history = []
     
     # Initialize components
@@ -113,7 +113,7 @@ def play_interactive_game():
                 print(f"\nModel ({current_player}) is thinking...")
                 action_probs = mcts.get_action_probs(state, temperature)
                 moves, probs = zip(*action_probs.items())
-                move = moves[np.argmax(probs)]
+                move = moves[np.argmax(probs)] #this is just getting the highest probabilty move which will always be the same?
                 
                 # Convert move to algebraic notation for display
                 start_alg = chr(ord('a') + move[0][1]) + str(11 - move[0][0])
@@ -150,6 +150,7 @@ def play_interactive_game():
             print("Please try again.")
             
 if __name__ == "__main__":
+    #add the specs like in self train and eval into main here to make everything uniform.
     print("Welcome to Hnefatafl!")
     print("=" * 50)
     try:

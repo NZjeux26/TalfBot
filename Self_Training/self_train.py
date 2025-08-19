@@ -337,7 +337,7 @@ def main():
     # Training configuration
     training_args = {
         'c_puct': 1.0,              # MCTS exploration constant
-        'n_simulations': 10,       # MCTS simulations per move must be > 0
+        'n_simulations': 2000,       # MCTS simulations per move must be > 0
         'temperature': 1.0,         # Move selection temperature
         'num_games': 1,            # Games per iteration
         'learning_rate': 0.001,     # Neural network learning rate

@@ -1,0 +1,52 @@
+[
+  {
+    "iteration": 5,
+    "timestamp": "2025-08-13T17:35:58.948000",
+    "new_model_path": "models/hnefatafl_selfplay_iter_final_20250802_232744.pth",
+    "baseline_model_path": "hnefatafl_policy_value_model.pth",
+    "quick_tournament": {
+      "timestamp": "2025-08-13T17:35:58.938847",
+      "model1_path": "models/hnefatafl_selfplay_iter_final_20250802_232744.pth",
+      "model2_path": "hnefatafl_policy_value_model.pth",
+      "num_games": 2,
+      "mcts_sims": 100,
+      "model1_wins": 0,
+      "model2_wins": 0,
+      "draws": 2,
+      "model1_winrate": 0,
+      "model2_winrate": 0,
+      "elapsed_time": 135.58071875572205,
+      "results": [
+        0,
+        0
+      ]
+    },
+    "detailed_tournament": {
+      "timestamp": "2025-08-13T17:35:58.938847",
+      "model1_path": "models/hnefatafl_selfplay_iter_final_20250802_232744.pth",
+      "model2_path": "hnefatafl_policy_value_model.pth",
+      "num_games": 2,
+      "mcts_sims": 100,
+      "model1_wins": 0,
+      "model2_wins": 0,
+      "draws": 2,
+      "model1_winrate": 0,
+      "model2_winrate": 0,
+      "elapsed_time": 135.58071875572205,
+      "results": [
+        0,
+        0
+      ]
+    },
+    "position_evaluations": [
+      {
+        "position": "initial_position",
+        "expected": 0.0,
+        "predicted": -1.0,
+        "error": 1.0
+      }
+    ],
+    "model1_winrate": 0,
+    "is_improved": false
+  }
+]

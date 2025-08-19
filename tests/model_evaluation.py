@@ -12,11 +12,12 @@ import time
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(project_root, "Data_Conversion_and_Validation"))
 sys.path.append(os.path.join(project_root, "Training"))
+sys.path.append(os.path.join(project_root, "Self_Training"))
 
 from model import PolicyValueNetwork
 from MCTSTwo import MCTS
 from Move_Generation import HnefataflGame
-from utils import get_device
+from utils import get_device, Timer
 class ModelEvaluator:
     def __init__(self, device=None):
         self.device = get_device()
@@ -49,7 +50,7 @@ class ModelEvaluator:
                 return start_probs, end_probs, value
         return policy_value_fn
     
-    def play_game(self, model1_fn, model2_fn, mcts_sims=400, verbose=False):
+    def play_game(self, model1_fn, model2_fn, mcts_sims=None, verbose=False):
         """
         Play a single game between two models
         Returns: 1 if model1 wins, -1 if model2 wins, 0 if draw
@@ -58,14 +59,16 @@ class ModelEvaluator:
         game1 = HnefataflGame(model1_fn)
         game2 = HnefataflGame(model2_fn)
         
+        c_puct = testing_args['c_puct']
+        
         # Initialize MCTS for both players
-        mcts1 = MCTS(game1, n_simulations=mcts_sims, c_puct=1.0)
-        mcts2 = MCTS(game2, n_simulations=mcts_sims, c_puct=1.0)
+        mcts1 = MCTS(game1, n_simulations=mcts_sims, c_puct=c_puct)
+        mcts2 = MCTS(game2, n_simulations=mcts_sims, c_puct=c_puct)
         
         state = game1.get_initial_state()
         move_count = 0
         max_moves = 200  # Prevent infinite games
-        
+        mcts_sims = testing_args['n_simulations']
         # Initialize move history for repetition detection
         move_history = []
         
@@ -77,12 +80,12 @@ class ModelEvaluator:
             
             # Determine which model plays (model1 = black, model2 = white)
             if current_player == 'black':
-                action_probs = mcts1.get_action_probs(state, temperature=0.1)
+                action_probs = mcts1.get_action_probs(state, temperature=testing_args['temperature'])
             else:
-                action_probs = mcts2.get_action_probs(state, temperature=0.1)
+                action_probs = mcts2.get_action_probs(state, temperature=testing_args['temperature'])
             
             # Get valid moves for current position, if none break
-            valid_moves = self.game.get_valid_moves(state)
+            valid_moves = game1.get_valid_moves(state)
             if not valid_moves:
                 print(f"No valid moves available for {current_player}!")
                 game_result = 1 if current_player == 'black' else -1
@@ -90,17 +93,22 @@ class ModelEvaluator:
             
             # Select best move
             moves, probs = zip(*action_probs.items())
-            move = moves[np.argmax(probs)]
+            moves = list(moves)
+            probs = np.array(probs, dtype=float)
+            probs /= probs.sum()  # ensure probabilities sum to 1
+
+            idx = np.random.choice(len(moves), p=probs)
+            move = moves[idx]
             
             # Make move
             state = game1.make_move(state, move)
             move_count += 1
             
             # Check for repetition (after the move is made)
-            if self.game.check_move_repetition(move_history, move):
-                self.game.print_state(state)
+            if game1.check_move_repetition(move_history, move):
+                game1.print_state(state)
                 print("\nGame Over! Black wins by perpetual repetition!")
-                break
+                return 1 # changed from break
             
             # Check for game end
             result = game1.get_game_ended(state)
@@ -114,13 +122,16 @@ class ModelEvaluator:
             print(f"Game reached maximum moves ({max_moves}), declaring draw")
         return 0  # Draw
     
-    def tournament(self, model1_path, model2_path, num_games=20, mcts_sims=400):
+    def tournament(self, model1_path, model2_path, num_games=None, mcts_sims=None):
         """
         Run a tournament between two models
         Each model plays as both black and white
         """
         print(f"\n=== Tournament: {os.path.basename(model1_path)} vs {os.path.basename(model2_path)} ===")
         print(f"Games: {num_games}, MCTS simulations: {mcts_sims}")
+        
+        num_games = testing_args['num_games']
+        mcts_sims = testing_args['n_simulations']
         
         model1 = self.load_model(model1_path)
         model2 = self.load_model(model2_path)
@@ -196,11 +207,12 @@ class ModelEvaluator:
         
         return tournament_result
     
-    def benchmark_against_baseline(self, new_model_path, baseline_model_path, num_games=30):
+    def benchmark_against_baseline(self, new_model_path, baseline_model_path, num_games=None):
         """
         Test new model against baseline to measure improvement
         Returns True if new model is significantly better
         """
+        num_games = testing_args['num_games']
         result = self.tournament(new_model_path, baseline_model_path, num_games)
         
         # Consider improvement if new model wins >55% of decisive games
@@ -291,6 +303,124 @@ class ModelEvaluator:
         plt.savefig(save_path, dpi=300)
         plt.show()
         print(f"Improvement plot saved to {save_path}")
+    
+    def play_game_with_visualisation(self, model1_fn, model2_fn, mcts_sims=None, verbose=False, print_every_n_moves=10):
+        """
+        Play a single game with visual output for debugging
+        """
+        game1 = HnefataflGame(model1_fn)
+        game2 = HnefataflGame(model2_fn)
+        
+        c_puct = testing_args['c_puct']
+        
+        mcts1 = MCTS(game1, n_simulations=mcts_sims, c_puct=c_puct)
+        mcts2 = MCTS(game2, n_simulations=mcts_sims, c_puct=c_puct)
+        
+        state = game1.get_initial_state()
+        move_count = 0
+        max_moves = 200
+        mcts_sims = testing_args['n_simulations']
+        move_history = []
+        
+        print(f"\n=== GAME START ===")
+        game1.print_state(state)
+        
+        while move_count < max_moves:
+            current_player = 'black' if state[game1.PLAYER].sum() == 0 else 'white'
+            
+            # Get model evaluation
+            _, _, value = model1_fn(state) if current_player == 'black' else model2_fn(state)
+            
+            if verbose or (move_count % print_every_n_moves == 0):
+                print(f"\n--- Move {move_count + 1}: {current_player}'s turn ---")
+                print(f"Model evaluation: {value:.3f}")
+            
+            if current_player == 'black':
+                action_probs = mcts1.get_action_probs(state, temperature=testing_args['temperature'])
+            else:
+                action_probs = mcts2.get_action_probs(state, temperature=testing_args['temperature'])
+            
+            valid_moves = game1.get_valid_moves(state)
+            if not valid_moves:
+                print(f"No valid moves available for {current_player}!")
+                return 1 if current_player == 'black' else -1
+            
+            # Sample move properly
+            moves, probs = zip(*action_probs.items())
+            moves_list = list(moves)
+            probs = np.array(probs)
+            probs = probs / np.sum(probs)
+            chosen_idx = np.random.choice(len(moves_list), p=probs)
+            move = moves_list[chosen_idx]
+            
+            # Convert move to algebraic notation for display
+            start_alg = chr(ord('a') + move[0][1]) + str(11 - move[0][0])
+            end_alg = chr(ord('a') + move[1][1]) + str(11 - move[1][0])
+            
+            if verbose or (move_count % print_every_n_moves == 0):
+                print(f"{current_player} plays: {start_alg}-{end_alg}")
+                print(f"Move probability: {probs[chosen_idx]:.3f}")
+            
+            # Make move
+            state = game1.make_move(state, move)
+            move_history.append(move)
+            move_count += 1
+            
+            # Print board state every N moves
+            if verbose or (move_count % print_every_n_moves == 0):
+                game1.print_state(state)
+            
+            # Check for repetition
+            if game1.check_move_repetition(move_history, move):
+                game1.print_state(state)
+                print("\nGame Over! Black wins by perpetual repetition!")
+                return 1
+            
+            # Check for game end
+            result = game1.get_game_ended(state)
+            if result != 0:
+                game1.print_state(state)
+                winner = "Black (Model1)" if result == 1 else "White (Model2)"
+                print(f"Game over! {winner} wins in {move_count} moves")
+                return result
+        
+        print(f"\n=== GAME ENDED IN DRAW (MAX MOVES: {max_moves}) ===")
+        game1.print_state(state)
+        return 0
+    
+    def debug_tournament(self, model1_path, model2_path, num_games=1):
+        """
+        Run a tournament with full visualization for debugging
+        """
+        print(f"\n=== DEBUG TOURNAMENT ===")
+        print(f"Model 1: {os.path.basename(model1_path)}")
+        print(f"Model 2: {os.path.basename(model2_path)}")
+        
+        model1 = self.load_model(model1_path)
+        model2 = self.load_model(model2_path)
+        
+        model1_fn = self.get_policy_value_fn(model1)
+        model2_fn = self.get_policy_value_fn(model2)
+        
+        for game_num in range(num_games):
+            print(f"\n" + "="*60)
+            print(f"GAME {game_num + 1}/{num_games}")
+            if game_num % 2 == 0:
+                print("Model1 (Black) vs Model2 (White)")
+                result = self.play_game_with_visualisation(model1_fn, model2_fn, 
+                                                        mcts_sims=testing_args['n_simulations'], 
+                                                        verbose=False, print_every_n_moves=20)
+            else:
+                print("Model2 (Black) vs Model1 (White)")
+                result = self.play_game_with_visualisation(model2_fn, model1_fn, 
+                                                        mcts_sims=testing_args['n_simulations'], 
+                                                        verbose=False, print_every_n_moves=20)
+            
+            if result == 0:
+                print(f"Game {game_num + 1} ended in DRAW")
+            else:
+                winner = "Model1" if (result == 1 and game_num % 2 == 0) or (result == -1 and game_num % 2 == 1) else "Model2"
+                print(f"Game {game_num + 1} won by {winner}")
 
 def comprehensive_evaluation(new_model_path, baseline_model_path, iteration=None):
     """
@@ -306,12 +436,12 @@ def comprehensive_evaluation(new_model_path, baseline_model_path, iteration=None
     
     # 1. Quick tournament (10 games)
     print("\n1. Quick Tournament (10 games)")
-    quick_result = evaluator.tournament(new_model_path, baseline_model_path, num_games=10, mcts_sims=200)
+    quick_result = evaluator.tournament(new_model_path, baseline_model_path, num_games=testing_args['num_games'], mcts_sims=testing_args['n_simulations'])
     
     # 2. Detailed tournament (30 games) if quick test shows promise
     if quick_result['model1_winrate'] > 45:  # If showing some promise
         print("\n2. Detailed Tournament (30 games)")
-        detailed_result = evaluator.tournament(new_model_path, baseline_model_path, num_games=30, mcts_sims=400)
+        detailed_result = evaluator.tournament(new_model_path, baseline_model_path, num_games=testing_args['num_games'], mcts_sims=testing_args['n_simulations'])
     else:
         print("\n2. Skipping detailed tournament (model performing poorly)")
         detailed_result = quick_result
@@ -346,17 +476,34 @@ def comprehensive_evaluation(new_model_path, baseline_model_path, iteration=None
     
     return evaluation_summary
 
-if __name__ == "__main__":
+            
+if __name__ == "__main__": #Need to mod this to pick which model to compare and comprehensive or quick evaluation``
+    
+    #Paths to models to be tested
+    main_model = "hnefatafl_policy_value_model.pth"
+    model_to_test = "models/hnefatafl_selfplay_iter_final_20250802_232744.pth"
+    
+    testing_args = {
+        'c_puct': 1.2,              # MCTS exploration constant
+        'n_simulations': 100,       # MCTS simulations per move must be > 0
+        'temperature': 1.0,         # Move selection temperature
+        'num_games': 2,             # Games per iteration
+    }
+    
     # Example usage
     print("Model Evaluation Framework")
-    print("Usage examples:")
-    print("1. Compare two models:")
-    print("   python model_evaluation.py")
-    print("2. Use in training loop to evaluate each iteration")
     
     # Example comparison (uncomment and modify paths as needed)
     # comprehensive_evaluation(
-    #     "models/hnefatafl_selfplay_iter_5.pth",
-    #     "hnefatafl_policy_value_model.pth",
+    #     model_to_test,
+    #     main_model,
     #     iteration=5
     # )
+    evaluator = ModelEvaluator()
+    
+    # Run debug tournament with visualization
+    evaluator.debug_tournament(
+        model_to_test,
+        main_model,
+        num_games=1  # Just one game with full output
+    )
