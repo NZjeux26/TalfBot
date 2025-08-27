@@ -13,9 +13,9 @@ device = get_device()
 print(f"🚀 Using device: {device}")
 
 # Load Data
-train_loader, val_loader, test_loader = get_dataloaders(batch_size=32)
+train_loader, val_loader, test_loader = get_dataloaders(batch_size=64)
 
-# Initialize Model
+# Initialise Model
 model = PolicyValueNetwork().to(device)
 
 # Loss functions
@@ -23,11 +23,11 @@ policy_loss_fn = nn.CrossEntropyLoss()
 end_loss_fn = nn.CrossEntropyLoss()  # For y_end
 value_loss_fn = nn.MSELoss()  # For y_winner (regression)
 
-# Optimizer
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+# optimiser
+optimiser = optim.Adam(model.parameters(), lr=0.001)
 
 # Define the learning rate scheduler
-scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=3, factor=0.1)
+scheduler = ReduceLROnPlateau(optimiser, mode='min', patience=3, factor=0.1)
 
 # Training Stats
 EPOCHS = 5
@@ -67,9 +67,9 @@ for epoch in range(EPOCHS):
         total_loss = start_loss + end_loss + (0.01 * value_loss)
 
         # Backpropagation
-        optimizer.zero_grad()
+        optimiser.zero_grad()
         total_loss.backward()
-        optimizer.step()
+        optimiser.step()
 
         # Track training loss
         total_train_loss += total_loss.item()

@@ -73,7 +73,7 @@ class MCTS:
         def ucb_score(child):
             prior_score = self.c_puct * child.prior * total_sqrt / (1 + child.visit_count)
             if child.visit_count > 0:
-                value_score = -child.value_sum / child.visit_count
+                value_score = -child.value_sum / child.visit_count #removed the neg symbol
             else:
                 value_score = 0
             return value_score + prior_score
@@ -89,7 +89,7 @@ class MCTS:
             value = -value  # Switch perspective for opponent
     
     def get_action_probs(self, state, temperature=1):
-        """Get normalized visit counts as action probabilities"""
+        """Get normalised visit counts as action probabilities"""
         root = self.search(state)
         visit_counts = np.array([child.visit_count for child in root.children.values()])
         moves = list(root.children.keys())

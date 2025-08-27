@@ -1,3 +1,4 @@
+import math
 import os
 import sys
 import numpy as np
@@ -30,28 +31,23 @@ class HnefataflGame:
         Returns: dict mapping moves (start, end) to their probabilities
         """
         start_probs, end_probs, _ = self.get_policy_value_predictions(state)
-        move_probs = {}
-        
+
+        move_logits = {}
         for start, end in valid_moves:
-            # Convert 2D positions to 1D indices
             start_idx = start[0] * self.BOARD_SIZE + start[1]
             end_idx = end[0] * self.BOARD_SIZE + end[1]
-            
-            # Combine probabilities for the move
-            move_prob = start_probs[start_idx] * end_probs[end_idx]
-            move_probs[(start, end)] = move_prob
-        
-        # Normalize probabilities
-        if move_probs:
-            total_prob = sum(move_probs.values())
-            if total_prob > 0:
-                move_probs = {k: v/total_prob for k, v in move_probs.items()}
-            else:
-                # If all probabilities are zero, use uniform distribution
-                uniform_prob = 1.0 / len(valid_moves)
-                move_probs = {k: uniform_prob for k in move_probs}
-        
-        return move_probs
+
+            # Log-space combination
+            move_logits[(start, end)] = (
+                math.log(start_probs[start_idx] + 1e-10) +
+                math.log(end_probs[end_idx] + 1e-10)
+            )
+
+        # Softmax over valid moves
+        max_logit = max(move_logits.values())
+        exp_probs = {k: math.exp(v - max_logit) for k, v in move_logits.items()}
+        total = sum(exp_probs.values())
+        return {k: v / total for k, v in exp_probs.items()}
     
     def encode_move(self, move):
         """Convert move tuple to network input format"""
@@ -295,26 +291,17 @@ class HnefataflGame:
         # If defenders can't reach an edge, they're completely surrounded
         return not can_reach_edge
 
-    def check_move_repetition(self, move_history, current_move):
+    def check_move_repetition(self, move_history):
         """
         Check for perpetual repetition based on move sequences.
         Tracks recent moves and detects repetitive patterns.
         
         Args:
             move_history: List of recent moves [(start1, end1), (start2, end2), ...]
-            current_move: The move just made (start, end)
             
         Returns:
-            True if repetition is detected (3 identical sequences), None otherwise
+            True if repetition is detected (3 identical sequences), False otherwise
         """
-        # Add the current move to history
-        if current_move not in move_history:
-            move_history.append(current_move)
-        
-        # Limit history size to prevent excessive memory usage
-        if len(move_history) > 30:  # Keep only the last 30 moves
-            move_history = move_history[-30:]
-        
         # Look for sequences of 4 moves (2 moves by each player)
         seq_length = 4
         
@@ -322,17 +309,20 @@ class HnefataflGame:
             # Check the last sequence
             latest_seq = move_history[-seq_length:]
             
-            # Check if this sequence appears 3 times in total
+            # Check if this sequence appears 3 times in total in the recent history
             count = 0
-            for i in range(0, len(move_history) - seq_length + 1, seq_length):
-                current_seq = move_history[i:i+seq_length]
+            # Only check the last portion of history that could contain 3 sequences
+            recent_history = move_history[-(3 * seq_length):]
+            
+            for i in range(0, len(recent_history) - seq_length + 1, seq_length):
+                current_seq = recent_history[i:i+seq_length]
                 if current_seq == latest_seq:
                     count += 1
             
             if count >= 3:
                 return True
         
-        return None
+        return False
     
     def get_game_ended(self, state):
         """Check if game is over and return winner"""
@@ -612,3 +602,38 @@ class HnefataflGame:
         # Use your existing print_board function
         print_board(state)
         print(f"Current player: {'White' if state[self.PLAYER].sum() > 0 else 'Black'}")
+        
+    def apply_repetition_penalty(self, action_probs, move_history, penalty_factor=0.1, look_back=10):
+        """
+        Reduce probabilities of recently played moves to prevent cycling
+        
+        Args:
+            action_probs: Dict of {move: probability} from MCTS
+            move_history: List of recent moves (most recent last)
+            penalty_factor: Multiplier for repeated moves (0.3 = reduce to 30%)
+            look_back: How many recent moves to consider
+        
+        Returns:
+            Dict of {move: adjusted_probability}
+        """
+        if len(move_history) < 2:
+            return action_probs
+        
+        penalised_probs = action_probs.copy()
+        recent_moves = move_history[-look_back:] if len(move_history) > look_back else move_history
+        
+        for move, prob in penalised_probs.items():
+            # Count occurrences of this move in recent history
+            move_count = recent_moves.count(move)
+            
+            if move_count > 0:
+                # Apply exponential penalty: more recent repetitions = harsher penalty
+                penalty = penalty_factor ** move_count
+                penalised_probs[move] = prob * penalty
+        
+        # Renormalize probabilities so they still sum to 1
+        total_prob = sum(penalised_probs.values())
+        if total_prob > 0:
+            penalised_probs = {move: prob / total_prob for move, prob in penalised_probs.items()}
+        
+        return penalised_probs

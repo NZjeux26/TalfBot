@@ -186,7 +186,7 @@ class SelfPlayTrainer:
     
     def _train_network_updated(self, examples, args):
         """Updated training function that handles the specific format"""
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=args['learning_rate'])
+        optimiser = torch.optim.Adam(self.model.parameters(), lr=args['learning_rate'])
         batch_size = args['batch_size']
         epochs = args['epochs']
         
@@ -236,7 +236,7 @@ class SelfPlayTrainer:
             batches = 0
             epoch_timer = Timer()
             for batch_idx, (state_batch, start_target, end_target, value_target) in enumerate(dataloader):
-                optimizer.zero_grad()
+                optimiser.zero_grad()
                 
                 # Forward pass
                 start_pred, end_pred, value_pred = self.model(state_batch)
@@ -251,7 +251,7 @@ class SelfPlayTrainer:
                 
                 # Backward pass
                 loss.backward()
-                optimizer.step()
+                optimiser.step()
                 
                 total_loss += loss.item()
                 batches += 1
@@ -337,13 +337,13 @@ def main():
     # Training configuration
     training_args = {
         'c_puct': 1.0,              # MCTS exploration constant
-        'n_simulations': 2000,       # MCTS simulations per move must be > 0
+        'n_simulations': 500,       # MCTS simulations per move must be > 0
         'temperature': 1.0,         # Move selection temperature
-        'num_games': 1,            # Games per iteration
+        'num_games': 1,             # Games per iteration
         'learning_rate': 0.001,     # Neural network learning rate
-        'batch_size': 32,           # Training batch size
+        'batch_size': 64,           # Training batch size
         'min_examples': 1000,       # Minimum examples before training starts
-        'epochs': 5,                 # Training epochs per iteration
+        'epochs': 5,                # Training epochs per iteration
         'num_iterations': 2
         
     }

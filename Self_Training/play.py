@@ -112,6 +112,7 @@ def play_interactive_game():
                 # Model move
                 print(f"\nModel ({current_player}) is thinking...")
                 action_probs = mcts.get_action_probs(state, temperature)
+                action_probs = game.apply_repetition_penalty(action_probs, move_history) #applies penatly if the same moves are repeated
                 moves, probs = zip(*action_probs.items())
                 move = moves[np.argmax(probs)] #this is just getting the highest probabilty move which will always be the same?
                 
@@ -125,7 +126,7 @@ def play_interactive_game():
             move_count += 1
             
             # Check for repetition (after the move is made)
-            if game.check_move_repetition(move_history, move):
+            if game.check_move_repetition(move_history):
                 game.print_state(state)
                 print("\nGame Over! Black wins by perpetual repetition!")
                 break

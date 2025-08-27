@@ -335,7 +335,7 @@ def test_move_repetition(game, initial_layout):
             state = game.make_move(state, move)
             
     # Check if the last sequence is repeated
-    repetition_detected = game.check_move_repetition(move_history[-12:], repeating_sequence[-1])
+    repetition_detected = game.check_move_repetition(move_history)
     
     # Assert that repetition was detected
     assert repetition_detected == True, "Move repetition should be detected after 3 cycles"
@@ -356,10 +356,10 @@ def test_move_repetition(game, initial_layout):
         state = game.make_move(state, move)
     
     # Check if repetition is detected for non-repeating moves
-    repetition_detected = game.check_move_repetition(move_history, different_moves[-1])
+    repetition_detected = game.check_move_repetition(move_history)
     
     # Assert that no repetition was detected
-    assert repetition_detected is None, "No repetition should be detected for different moves"
+    assert repetition_detected is False, "No repetition should be detected for different moves"
     
     # Add new test case for king movement repetition
     move_history = []
@@ -385,7 +385,7 @@ def test_move_repetition(game, initial_layout):
             state = game.make_move(state, move)
     
     # Check if the last sequence is repeated
-    repetition_detected = game.check_move_repetition(move_history[-12:], king_sequence[-1])
+    repetition_detected = game.check_move_repetition(move_history)
     
     # Assert that repetition was detected
     assert repetition_detected == True, "King move repetition should be detected after 3 cycles"
